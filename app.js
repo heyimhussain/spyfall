@@ -1,7 +1,7 @@
 // Spyfall — P2P multiplayer via PeerJS (no backend setup needed)
 const PEER_PREFIX = "spyfall-v1-";
 const $ = (id) => document.getElementById(id);
-const screens = ["home", "join", "watch", "setup", "manage", "custom", "lobby", "game", "present"];
+const screens = ["home", "join", "create", "watch", "setup", "manage", "custom", "lobby", "game", "present"];
 
 // minimal line icons (no emoji)
 const SVG_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -87,7 +87,14 @@ function allDecks(extra) {
     seen.add(d.id);
     out.push(d);
   });
-  out.sort((a, b) => (a.id === "classic" ? -1 : b.id === "classic" ? 1 : 0));
+  const PINNED = ["classic", "cities"];
+  out.sort((a, b) => {
+    const ai = PINNED.indexOf(a.id), bi = PINNED.indexOf(b.id);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
   return out;
 }
 function allLocations(deckIds, extra) {
@@ -153,22 +160,27 @@ function makeLocBlock(ns, name, roles, opts = {}) {
 
 // ---------- HOME ----------
 $("btn-create").onclick = () => {
-  myName = $("name-input").value.trim();
+  $("create-name").value = loadSettings().name || "";
+  show("create");
+  if (!$("create-name").value) setTimeout(() => $("create-name").focus(), 150);
+};
+$("btn-back-create").onclick = () => show("home");
+$("create-name").addEventListener("input", (e) => saveSettings({ name: e.target.value.slice(0, 20) }));
+$("btn-create-confirm").onclick = () => {
+  myName = $("create-name").value.trim();
   if (!myName) return toast("Enter your name first");
+  saveSettings({ name: myName });
   createGame();
 };
 $("btn-join-go").onclick = () => {
-  myName = $("name-input").value.trim();
-  if (!myName) return toast("Enter your name first");
-  $("join-name").value = myName;
+  $("join-name").value = loadSettings().name || "";
   show("join");
   const pre = new URLSearchParams(location.search).get("code");
   if (pre) $("code-input").value = pre.toUpperCase();
 };
 $("btn-join-confirm").onclick = () => {
-  myName = $("join-name").value.trim() || $("name-input").value.trim();
+  myName = $("join-name").value.trim();
   if (!myName) return toast("Enter your name first");
-  $("name-input").value = myName;
   saveSettings({ name: myName });
   const code = $("code-input").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (code.length !== 5) return toast("Enter the 5-character code");
@@ -186,9 +198,8 @@ $("btn-watch-confirm").onclick = () => {
   joinGame(code, true);
 };
 $("btn-offline").onclick = () => {
-  myName = $("name-input").value.trim();
-  if (!myName) return toast("Enter your name first");
-  setupPlayers = [myName, "Player 2", "Player 3"];
+  const savedName = loadSettings().name;
+  setupPlayers = [savedName || "Player 1", "Player 2", "Player 3"];
   const sv = loadSettings().setup || {};
   if (Array.isArray(sv.players) && sv.players.length >= 3) setupPlayers = sv.players.slice(0, 12);
   setupSpies = sv.spies >= 1 ? sv.spies : 1;
@@ -198,7 +209,6 @@ $("btn-offline").onclick = () => {
   renderSetup();
 };
 $("btn-back-home").onclick = () => show("home");
-$("name-input").addEventListener("input", (e) => saveSettings({ name: e.target.value.slice(0, 20) }));
 $("join-name").addEventListener("input", (e) => saveSettings({ name: e.target.value.slice(0, 20) }));
 $("btn-back-setup").onclick = () => show("home");
 
@@ -360,9 +370,30 @@ function renderLobby() {
   lobby.players.forEach((p) => {
     const div = document.createElement("div");
     div.className = "player" + (p.id === myId ? " you" : "");
+    const av = document.createElement("div");
+    av.className = "avatar";
     const color = `hsl(${(hash(p.id) % 360)} 70% 55%)`;
-    div.innerHTML = `<div class="avatar" style="background:${color}">${esc(p.name[0] || "?").toUpperCase()}</div>
-      <span>${esc(p.name)}</span>`;
+    av.style.background = color;
+    av.textContent = (p.name[0] || "?").toUpperCase();
+    div.appendChild(av);
+    if (isHost && p.id === myId) {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "pinput";
+      inp.value = p.name;
+      inp.maxLength = 20;
+      inp.onchange = () => {
+        p.name = inp.value.trim().slice(0, 20) || "Host";
+        myName = p.name;
+        saveSettings({ name: myName });
+        broadcast();
+      };
+      div.appendChild(inp);
+    } else {
+      const nm = document.createElement("span");
+      nm.textContent = p.name;
+      div.appendChild(nm);
+    }
     if (p.host) {
       const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "HOST";
       div.appendChild(tag);
@@ -1112,7 +1143,6 @@ function nameOf(id) {
 // QR joins: code in URL goes straight to the join screen, name prefilled
 window.addEventListener("DOMContentLoaded", () => {
   const savedName = loadSettings().name;
-  if (savedName) $("name-input").value = savedName;
   const pre = new URLSearchParams(location.search).get("code");
   if (pre) {
     $("code-input").value = pre.toUpperCase().slice(0, 5);
