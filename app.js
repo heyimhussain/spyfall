@@ -158,11 +158,16 @@ $("btn-create").onclick = () => {
 $("btn-join-go").onclick = () => {
   myName = $("name-input").value.trim();
   if (!myName) return toast("Enter your name first");
+  $("join-name").value = myName;
   show("join");
   const pre = new URLSearchParams(location.search).get("code");
   if (pre) $("code-input").value = pre.toUpperCase();
 };
 $("btn-join-confirm").onclick = () => {
+  myName = $("join-name").value.trim() || $("name-input").value.trim();
+  if (!myName) return toast("Enter your name first");
+  $("name-input").value = myName;
+  saveSettings({ name: myName });
   const code = $("code-input").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (code.length !== 5) return toast("Enter the 5-character code");
   joinGame(code, false);
@@ -192,6 +197,7 @@ $("btn-offline").onclick = () => {
 };
 $("btn-back-home").onclick = () => show("home");
 $("name-input").addEventListener("input", (e) => saveSettings({ name: e.target.value.slice(0, 20) }));
+$("join-name").addEventListener("input", (e) => saveSettings({ name: e.target.value.slice(0, 20) }));
 $("btn-back-setup").onclick = () => show("home");
 
 // ---------- HOST ----------
@@ -1101,11 +1107,17 @@ function nameOf(id) {
   return (list.find((p) => p.id === id) || {}).name || "?";
 }
 
-// auto-fill code from URL + remembered name
+// QR joins: code in URL goes straight to the join screen, name prefilled
 window.addEventListener("DOMContentLoaded", () => {
   const savedName = loadSettings().name;
   if (savedName) $("name-input").value = savedName;
   const pre = new URLSearchParams(location.search).get("code");
-  if (pre) toast("Tap Join to enter lobby " + pre.toUpperCase());
-  show("home");
+  if (pre) {
+    $("code-input").value = pre.toUpperCase().slice(0, 5);
+    $("join-name").value = savedName || "";
+    show("join");
+    if (!savedName) setTimeout(() => $("join-name").focus(), 300);
+  } else {
+    show("home");
+  }
 });
