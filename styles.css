@@ -123,8 +123,7 @@ body::after {
   .app.wide .present-hero { padding: 28px 22px; }
   .app.wide .present-code { font-size: clamp(48px, 7vw, 84px); }
   .app.wide .present-turn { font-size: clamp(52px, 7vw, 96px); }
-  .app.wide #present-lobby-wrap { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; align-items: start; }
-  .app.wide #present-lobby-wrap .glass { margin-bottom: 0; }
+  .app.wide #present-lobby-wrap { display: block; }
   .app.wide .present-cols { display: grid; grid-template-columns: 360px 1fr; gap: 14px; align-items: start; margin-top: 14px; }
   .app.wide .present-cols > * { min-width: 0; }
   .app.wide .present-cols .glass { margin-bottom: 0; }
@@ -224,7 +223,6 @@ input.code-input {
 .qr-wrap { display: flex; justify-content: center; margin: 16px 0 8px; }
 #qr, #present-qr { background: #fff; padding: 12px; border-radius: 22px; line-height: 0; }
 #qr img, #qr canvas, #present-qr img, #present-qr canvas { border-radius: 8px; }
-.link-hint { text-align: center; font-size: 12px; color: var(--faint); word-break: break-all; }
 
 .players { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .player {
@@ -241,7 +239,7 @@ input.code-input {
   font-family: var(--font-head); font-weight: 500; font-size: 15px;
   flex-shrink: 0;
   background: rgba(165, 180, 255, 0.2);
-  color: var(--accent);
+  color: #fff;
 }
 .player .tag {
   margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 1px;

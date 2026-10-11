@@ -85,6 +85,7 @@ function allDecks(extra) {
     seen.add(d.id);
     out.push(d);
   });
+  out.sort((a, b) => (a.id === "classic" ? -1 : b.id === "classic" ? 1 : 0));
   return out;
 }
 function allLocations(deckIds, extra) {
@@ -337,7 +338,6 @@ function renderQR() {
   try {
     new QRCode(el, { text: gameLink(lobby.code), width: 150, height: 150, correctLevel: QRCode.CorrectLevel.M });
   } catch { el.innerHTML = "<small>QR unavailable</small>"; }
-  $("join-link").textContent = gameLink(lobby.code);
 }
 
 function renderLobby() {
@@ -489,6 +489,7 @@ $("btn-start").onclick = () => {
     assignments,
   };
   lobby.turn = { order: shuffle(lobby.players.map((p) => p.id)), idx: 0 };
+  lobby.revealInfo = null;
   revealed = false; suspect = null; spyGuess = null;
   broadcast();
   toast("Roles dealt — tap your card");
@@ -531,32 +532,25 @@ function renderPresent() {
   $("present-game-wrap").style.display = playing ? "" : "none";
   if (!playing) {
     $("present-code").textContent = lobby.code;
-    $("present-link").textContent = gameLink(lobby.code);
     if (lastPresentCode !== lobby.code) {
       lastPresentCode = lobby.code;
       const el = $("present-qr");
       el.innerHTML = "";
       try {
-        new QRCode(el, { text: gameLink(lobby.code), width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+        new QRCode(el, { text: gameLink(lobby.code), width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
       } catch { el.innerHTML = "<small>QR unavailable</small>"; }
     }
     const n = lobby.players.length;
     $("present-count").textContent = n + (n === 1 ? " player joined" : " players joined");
-    const wrap = $("present-players");
-    wrap.innerHTML = "";
-    lobby.players.forEach((p) => {
-      const div = document.createElement("div");
-      div.className = "player";
-      div.innerHTML = `<div class="avatar">${esc(p.name[0] || "?").toUpperCase()}</div><span>${esc(p.name)}</span>`;
-      if (p.host) {
-        const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = "HOST";
-        div.appendChild(tag);
-      }
-      wrap.appendChild(div);
-    });
   } else {
     const ti = turnInfo();
     if (!ti) return;
+    const ri = lobby.revealInfo;
+    $("present-reveal").style.display = ri ? "block" : "none";
+    if (ri) {
+      $("present-reveal-loc").textContent = ri.location;
+      $("present-reveal-spies").textContent = (ri.spies.length === 1 ? "Spy: " : "Spies: ") + ri.spies.join(", ");
+    }
     $("present-turn").textContent = nameOf(ti.current);
     $("present-meta").textContent = `Question ${ti.pos} of ${ti.total} • Round ${ti.round}`;
     $("present-next").textContent = "Up next: " + nameOf(ti.next);
@@ -622,6 +616,11 @@ function renderGame() {
   $("btn-reveal").style.display = isHost || offline ? "block" : "none";
   $("suspects-card").style.display = "block";
   $("locations-card").style.display = "block";
+  // host revealed — show it to guests too
+  if (!offline && !isHost && lobby.revealInfo && lobby.revealInfo.at !== seenRevealAt) {
+    seenRevealAt = lobby.revealInfo.at;
+    openRevealModal(lobby.revealInfo.location, lobby.revealInfo.spies, "");
+  }
   // host-only advance; turn display lives on the projector screen
   $("btn-next-turn").style.display = isHost && !offline && lobby.turn ? "block" : "none";
   $("game-code-lbl").textContent = offline ? "Offline mode" : "Lobby " + lobby.code;
@@ -656,14 +655,27 @@ $("btn-reveal").onclick = () => {
   const players = offline ? offline.players : lobby.players;
   const round = offline ? { location: offline.location } : lobby.round;
   const spies = players.filter((p) => (offline ? offline.assignments[p.id].spy : lobby.round.assignments[p.id].spy));
-  $("reveal-body").innerHTML =
-    `<div class="pill">${esc(round.location)}</div>
-     <div style="margin:12px 0 6px;font-weight:800">${spies.length === 1 ? "Spy" : "Spies"}: ${spies.map((s) => esc(s.name)).join(", ")}</div>
-     <div style="color:rgba(255,255,255,.7);font-size:13.5px">Your role: <b style="color:#fff">${a.spy ? "SPY" : esc(a.role) + " @ " + esc(a.location)}</b></div>
+  openRevealModal(
+    round.location,
+    spies.map((s) => s.name),
+    `<div style="color:rgba(255,255,255,.7);font-size:13.5px">Your role: <b style="color:#fff">${a.spy ? "SPY" : esc(a.role) + " @ " + esc(a.location)}</b></div>
      ${suspect ? `<div style="margin-top:8px;font-size:14px">You suspect: <b>${esc(nameOf(suspect))}</b></div>` : ""}
-     ${spyGuess ? `<div style="margin-top:8px;font-size:14px">Spy guesses: <b>${esc(spyGuess)}</b></div>` : ""}`;
-  $("modal").classList.add("show");
+     ${spyGuess ? `<div style="margin-top:8px;font-size:14px">Spy guesses: <b>${esc(spyGuess)}</b></div>` : ""}`
+  );
+  if (!offline && isHost) {
+    lobby.revealInfo = { location: round.location, spies: spies.map((s) => s.name), at: Date.now() };
+    seenRevealAt = lobby.revealInfo.at;
+    broadcast();
+  }
 };
+let seenRevealAt = 0;
+function openRevealModal(location, spyNames, extraHTML) {
+  $("reveal-body").innerHTML =
+    `<div class="pill">${esc(location)}</div>
+     <div style="margin:12px 0 6px;font-weight:800">${spyNames.length === 1 ? "Spy" : "Spies"}: ${spyNames.map((s) => esc(s)).join(", ")}</div>` +
+    (extraHTML || "");
+  $("modal").classList.add("show");
+}
 $("modal-close").onclick = () => $("modal").classList.remove("show");
 $("modal").onclick = (e) => { if (e.target.id === "modal") e.currentTarget.classList.remove("show"); };
 
@@ -673,6 +685,7 @@ $("btn-new-round").onclick = () => {
   // back to lobby for new settings, keep players
   lobby.status = "lobby";
   lobby.round = null;
+  lobby.revealInfo = null;
   broadcast();
   show("lobby");
 };

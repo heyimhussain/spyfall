@@ -159,7 +159,6 @@
         <button id="btn-copy-link" class="btn btn-small">Copy invite</button>
       </div>
       <div class="qr-wrap"><div id="qr"></div></div>
-      <div id="join-link" class="link-hint"></div>
       <div class="conn"><span id="lobby-count">1 player</span> joined</div>
       <p class="sub" style="text-align:center;margin:12px 0 0">On a projector? Open this site there and tap Watch Game with this code.</p>
     </div>
@@ -230,15 +229,15 @@
         <span class="pill">JOIN THE GAME</span>
         <div id="present-code" class="code-big present-code">•••••</div>
         <div class="qr-wrap"><div id="present-qr"></div></div>
-        <div id="present-link" class="link-hint"></div>
         <div class="conn"><span id="present-count"></span></div>
-      </div>
-      <div class="glass">
-        <h2>Players</h2>
-        <div id="present-players" class="players"></div>
       </div>
     </div>
     <div id="present-game-wrap" style="display:none">
+      <div id="present-reveal" class="glass present-hero" style="display:none">
+        <span class="pill">REVEALED</span>
+        <div id="present-reveal-loc" class="present-turn"></div>
+        <div id="present-reveal-spies" class="present-next"></div>
+      </div>
       <div class="glass present-hero">
         <span class="pill">ASKING NOW</span>
         <div id="present-turn" class="present-turn"></div>
