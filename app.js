@@ -33,6 +33,8 @@ function show(name) {
   currentScreen = name;
   screens.forEach((s) => $("screen-" + s).classList.toggle("active", s === name));
   document.querySelector(".app").classList.toggle("wide", name === "present");
+  const boot = $("qr-boot");
+  if (boot) boot.style.display = "none";
   if (changed) window.scrollTo({ top: 0 });
 }
 function toast(msg) {
