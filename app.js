@@ -6,7 +6,7 @@ const PEER_CONFIG = {
   debug: 0,
   config: {
     iceServers: [
-      { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+      { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
       {
         urls: [
           "turn:openrelay.metered.ca:80",
@@ -342,6 +342,7 @@ function joinGame(code, asViewer) {
     hostConn.on("open", () => {
       sendHello();
       setTimeout(() => { if (!joinAnswered) sendHello(); }, 1500); // retry in case it raced
+      watchIce();
     });
     hostConn.on("data", (msg) => {
       joinAnswered = true;
@@ -355,6 +356,27 @@ function joinGame(code, asViewer) {
     setTimeout(() => {
       if (!lobby && !joinFailed && !joinAnswered) toast("Still trying… check code & internet");
     }, 4000);
+    // surface ICE death fast instead of hanging until the final timeout
+    function watchIce() {
+      let pc = null;
+      try { pc = hostConn && hostConn.peerConnection; } catch {}
+      if (!pc) {
+        if (!joinAnswered) setTimeout(watchIce, 1000);
+        return;
+      }
+      try {
+        pc.addEventListener("iceconnectionstatechange", () => {
+          try { console.log("[spyfall] ice:", pc.iceConnectionState); } catch {}
+          if (pc.iceConnectionState === "failed" && !joinAnswered && !joinFailed) {
+            joinFailed = true;
+            toast("Connection blocked between these networks — try again or switch network");
+            try { hostConn && hostConn.close(); } catch {}
+            try { peer && peer.destroy(); } catch {}
+            peer = null; hostConn = null;
+          }
+        });
+      } catch {}
+    }
     setTimeout(() => {
       if (!joinAnswered && !lobby) {
         joinFailed = true;
