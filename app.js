@@ -1,5 +1,24 @@
 // Spyfall — P2P multiplayer via PeerJS (no backend setup needed)
 const PEER_PREFIX = "spyfall-v1-";
+// STUN for direct connections + TURN relay fallback for strict networks
+// (mobile data / corporate WiFi often block P2P, which hangs joins otherwise)
+const PEER_CONFIG = {
+  debug: 0,
+  config: {
+    iceServers: [
+      { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+      {
+        urls: [
+          "turn:openrelay.metered.ca:80",
+          "turn:openrelay.metered.ca:443",
+          "turn:openrelay.metered.ca:443?transport=tcp",
+        ],
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+    ],
+  },
+};
 const $ = (id) => document.getElementById(id);
 const screens = ["home", "join", "create", "watch", "setup", "manage", "custom", "lobby", "game", "present"];
 
@@ -226,7 +245,7 @@ function createGame() {
   isHost = true;
   const code = genCode(5);
   myPeerId = PEER_PREFIX + code;
-  peer = new Peer(myPeerId, { debug: 0 });
+  peer = new Peer(myPeerId, PEER_CONFIG);
   peer.on("open", () => {
     const savedHost = loadSettings().host || {};
     const validDecks = (savedHost.decks || []).filter((id) => allDecks().some((d) => d.id === id));
@@ -313,7 +332,7 @@ function joinGame(code, asViewer) {
   joinAnswered = false;
   joinFailed = false;
   wasKicked = false;
-  peer = new Peer({ debug: 0 }); // random id
+  peer = new Peer(PEER_CONFIG); // random id
   peer.on("open", (id) => {
     myPeerId = id;
     hostConn = peer.connect(PEER_PREFIX + code, { reliable: true });
@@ -332,10 +351,19 @@ function joinGame(code, asViewer) {
     });
     hostConn.on("close", () => { if (!wasKicked && !joinFailed) toast("Host left the game"); leaveToHome(); });
     hostConn.on("error", () => { toast("Could not connect — check the code"); });
-    // timeout if host doesn't exist
+    // timeout if host doesn't exist or networks block the connection
     setTimeout(() => {
-      if (!lobby && !joinFailed) toast("Still trying… check code & internet");
+      if (!lobby && !joinFailed && !joinAnswered) toast("Still trying… check code & internet");
     }, 4000);
+    setTimeout(() => {
+      if (!joinAnswered && !lobby) {
+        joinFailed = true;
+        toast("Couldn't reach that lobby — the networks may be blocking the connection");
+        try { hostConn && hostConn.close(); } catch {}
+        try { peer && peer.destroy(); } catch {}
+        peer = null; hostConn = null;
+      }
+    }, 12000);
   });
   peer.on("error", (e) => {
     if (e.type === "peer-unavailable") toast("Lobby not found — check the code");
